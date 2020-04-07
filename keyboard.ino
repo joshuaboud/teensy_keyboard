@@ -1,21 +1,3 @@
-/* file: keyboard.ino
- *
- * Copyright 2020 Josh Boudreau
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 #include <Keyboard.h>
 
 #define L_SHIFT_ROW 3
@@ -37,86 +19,139 @@
 #define FN_ROW 4
 #define FN_COL 11
 
-#define SHIFT(x,y) (x == L_SHIFT_ROW && y == L_SHIFT_COL || x == R_SHIFT_ROW && y == R_SHIFT_COL)
+#define LSHIFT(x,y) (x == L_SHIFT_ROW && y == L_SHIFT_COL)
+#define RSHIFT(x,y) (x == R_SHIFT_ROW && y == R_SHIFT_COL)
 #define CTRL(x,y) (x == L_CTRL_ROW && y == L_CTRL_COL)
-#define ALT(x,y) (x == L_ALT_ROW && y == L_ALT_COL || x == R_ALT_ROW && y == R_ALT_COL)
+#define LALT(x,y) (x == L_ALT_ROW && y == L_ALT_COL)
+#define RALT(x,y) (x == R_ALT_ROW && y == R_ALT_COL)
 #define WIN(x,y) (x == WIN_ROW && y == WIN_COL)
 #define FN(x,y) (x == FN_ROW && y == FN_COL)
 
-const byte ROWS = 5; //eight rows
-const byte COLS = 16; //sixteen columns
-char rowIndex[ROWS] = {2, 3, 4, 5, 6};
-char colIndex[COLS] = {7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
-char keys[ROWS][COLS] = {
+#define N_KEYS 6
+
+#define ROWS 5
+#define COLS 16
+
+uint8_t rowIndex[ROWS] = {2, 3, 4, 5, 6};
+uint8_t colIndex[COLS] = {7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
+uint16_t keys[ROWS][COLS] = {
   {KEY_ESC,KEY_1,KEY_2,KEY_3,KEY_4,KEY_5,KEY_6,KEY_7,KEY_8,KEY_9,KEY_0,KEY_MINUS,KEY_EQUAL,KEY_TILDE,KEY_BACKSPACE,KEY_DELETE},
   {KEY_TAB,KEY_Q,KEY_W,KEY_E,KEY_R,KEY_T,KEY_Y,KEY_U,KEY_I,KEY_O,KEY_P,KEY_LEFT_BRACE,KEY_RIGHT_BRACE,'0',KEY_BACKSLASH,KEY_PAGE_UP},
   {KEY_CAPS_LOCK,KEY_A,KEY_S,KEY_D,KEY_F,KEY_G,KEY_H,KEY_J,KEY_K,KEY_L,KEY_SEMICOLON,KEY_QUOTE,'1',KEY_ENTER,'1',KEY_PAGE_DOWN},
-  {KEY_LEFT_SHIFT,'1',KEY_Z,KEY_X,KEY_C,KEY_V,KEY_B,KEY_N,KEY_M,KEY_COMMA,KEY_PERIOD,KEY_SLASH,KEY_RIGHT_SHIFT,'1',KEY_UP,KEY_END},
-  {KEY_LEFT_CTRL,KEY_LEFT_GUI,KEY_LEFT_ALT,'1','2','3',KEY_SPACE,'1','2','3',KEY_RIGHT_ALT,'9','1',KEY_LEFT,KEY_DOWN,KEY_RIGHT}
+  {MODIFIERKEY_SHIFT,'1',KEY_Z,KEY_X,KEY_C,KEY_V,KEY_B,KEY_N,KEY_M,KEY_COMMA,KEY_PERIOD,KEY_SLASH,MODIFIERKEY_RIGHT_SHIFT,'1',KEY_UP,KEY_END},
+  {MODIFIERKEY_CTRL,MODIFIERKEY_GUI,MODIFIERKEY_ALT,'1','2','3',KEY_SPACE,'1','2','3',MODIFIERKEY_RIGHT_ALT,'9','1',KEY_LEFT,KEY_DOWN,KEY_RIGHT}
 };
-char fn_keys[ROWS][COLS] = {
+uint16_t fn_keys[ROWS][COLS] = {
   {0,KEY_F1,KEY_F2,KEY_F3,KEY_F4,KEY_F5,KEY_F6,KEY_F7,KEY_F8,KEY_F9,KEY_F10,KEY_F11,KEY_F12,0,0,0},
   {0,KEY_7,KEY_8,KEY_9,0,0,0,0,0,0,0,0,0,0,0,KEY_END},
   {0,KEY_4,KEY_5,KEY_6,0,0,0,0,0,0,0,0,0,0,0,KEY_HOME},
-  {0,0,KEY_1,KEY_2,KEY_3,0,0,0,0,0,0,0,0,0,0,0},
-  {0,0,0,0,0,0,KEY_0,0,0,0,0,0,0,0,0,0}
+  {0,0,KEY_1,KEY_2,KEY_3,0,0,0,0,0,0,0,0,0,KEY_MEDIA_VOLUME_INC,0},
+  {0,0,0,0,0,0,KEY_0,0,0,0,0,0,0,0,KEY_MEDIA_VOLUME_DEC,0}
 };
-unsigned char held[ROWS][COLS] = {0};
+uint8_t held[ROWS][COLS] = {0};
+
+uint8_t n_key_held[N_KEYS] = {0};
+
+void send_key(uint8_t index, uint16_t key);
 
 void setup() {
-    int i;
-    for(i = 0; i <= COLS; i++){
-      pinMode(colIndex[i], OUTPUT);
-      digitalWrite(i, LOW);
-    }
-    for(i = 0; i <= ROWS; i++){
-      pinMode(rowIndex[i], INPUT_PULLDOWN);
-    }
+  Serial.begin(9600);
+  int i;
+  for(i = 0; i <= COLS; i++){
+    pinMode(colIndex[i], OUTPUT);
+    digitalWrite(i, LOW);
+  }
+  for(i = 0; i <= ROWS; i++){
+    pinMode(rowIndex[i], INPUT_PULLDOWN);
+  }
 }
 
 
 void loop() {
   int i, j;
+  uint8_t n_key_index = 0;
   for(i = 0; i < COLS; i++){
     digitalWrite(colIndex[i], HIGH);
     for(j = 0; j < ROWS; j++){
       if(digitalRead(rowIndex[j]) == HIGH){
         // key pressed
         if(held[j][i] == 0){
+          Serial.printf("Pressing (%d,%d)\n",j,i);
           held[j][i] = 1;
-          if(SHIFT(j,i)){
+          if(LSHIFT(j,i)){
             Keyboard.press(MODIFIERKEY_SHIFT);
+          }else if(RSHIFT(j,i)){
+            Keyboard.press(MODIFIERKEY_RIGHT_SHIFT);
           }else if(CTRL(j,i)){
             Keyboard.press(MODIFIERKEY_CTRL);
-          }else if(ALT(j,i)){
+          }else if(LALT(j,i)){
             Keyboard.press(MODIFIERKEY_ALT);
+          }else if(RALT(j,i)){
+            Keyboard.press(MODIFIERKEY_RIGHT_ALT);
           }else if(WIN(j,i)){
             Keyboard.press(MODIFIERKEY_GUI);
           }else if(!FN(j,i)){
-            char keycode = keys[j][i];
+            uint16_t keycode = keys[j][i];
             if(held[FN_ROW][FN_COL]){
               keycode = fn_keys[j][i];
+              Serial.printf("fn modifier code: %d (%x)\n",keycode,keycode);
             }
-            Keyboard.set_key1(keycode);
-            Keyboard.send_now();
+            for(n_key_index = 0; n_key_index < N_KEYS; n_key_index++){
+              if(!n_key_held[n_key_index]) break;
+            }
+            n_key_held[n_key_index] = 1;
+            held[j][i] = n_key_index + 1;
+            send_key(n_key_index,keycode);
           }
         }
       }else if(held[j][i]){ // only once when not held
-        if(SHIFT(j,i)){
+        if(LSHIFT(j,i)){
           Keyboard.release(MODIFIERKEY_SHIFT);
+        }else if(RSHIFT(j,i)){
+          Keyboard.release(MODIFIERKEY_RIGHT_SHIFT);
         }else if(CTRL(j,i)){
           Keyboard.release(MODIFIERKEY_CTRL);
-        }else if(ALT(j,i)){
+        }else if(LALT(j,i)){
           Keyboard.release(MODIFIERKEY_ALT);
+        }else if(RALT(j,i)){
+          Keyboard.release(MODIFIERKEY_RIGHT_ALT);
         }else if(WIN(j,i)){
           Keyboard.release(MODIFIERKEY_GUI);
         }else if(!FN(j,i)){
-          Keyboard.set_key1(0);
-          Keyboard.send_now();
+          uint8_t index = held[j][i] - 1;
+          send_key(index,0);
+          n_key_held[index] = 0;
         }
         held[j][i] = 0;
       }
     }
     digitalWrite(colIndex[i], LOW);
   }
+}
+
+void send_key(uint8_t index, uint16_t key){
+  switch(index){
+  case 0:
+    Keyboard.set_key1(key);
+    break;
+  case 1:
+    Keyboard.set_key2(key);
+    break;
+  case 2:
+    Keyboard.set_key3(key);
+    break;
+  case 3:
+    Keyboard.set_key4(key);
+    break;
+  case 4:
+    Keyboard.set_key5(key);
+    break;
+  case 5:
+    Keyboard.set_key6(key);
+    break;
+  default:
+    Serial.printf("Out of bound index in press_key: index = %d",index);
+    break;
+  }
+  Keyboard.send_now();
 }
