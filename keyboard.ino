@@ -1,5 +1,10 @@
 #include <Keyboard.h>
 
+#define VOL_UP 115
+#define VOL_DN 114
+#define BRI_UP 225
+#define BRI_DN 224
+
 #define L_SHIFT_ROW 3
 #define L_SHIFT_COL 0
 #define R_SHIFT_ROW 3
@@ -29,6 +34,8 @@
 
 #define N_KEYS 6
 
+#define DEBOUNCE_LIM 50
+
 #define ROWS 5
 #define COLS 16
 
@@ -45,12 +52,14 @@ uint16_t fn_keys[ROWS][COLS] = {
   {0,KEY_F1,KEY_F2,KEY_F3,KEY_F4,KEY_F5,KEY_F6,KEY_F7,KEY_F8,KEY_F9,KEY_F10,KEY_F11,KEY_F12,0,0,0},
   {0,KEY_7,KEY_8,KEY_9,0,0,0,0,0,0,0,0,0,0,0,KEY_END},
   {0,KEY_4,KEY_5,KEY_6,0,0,0,0,0,0,0,0,0,0,0,KEY_HOME},
-  {0,0,KEY_1,KEY_2,KEY_3,0,0,0,0,0,0,0,0,0,KEY_MEDIA_VOLUME_INC,0},
-  {0,0,0,0,0,0,KEY_0,0,0,0,0,0,0,0,KEY_MEDIA_VOLUME_DEC,0}
+  {0,0,KEY_1,KEY_2,KEY_3,0,0,0,0,0,0,0,0,0,VOL_UP,0},
+  {0,0,0,0,0,0,KEY_0,0,0,0,0,0,0,BRI_DN,VOL_DN,BRI_UP}
 };
 uint8_t held[ROWS][COLS] = {0};
 
 uint8_t n_key_held[N_KEYS] = {0};
+
+int8_t debounce[ROWS][COLS] = {0};
 
 void send_key(uint8_t index, uint16_t key);
 
@@ -75,6 +84,11 @@ void loop() {
     for(j = 0; j < ROWS; j++){
       if(digitalRead(rowIndex[j]) == HIGH){
         // key pressed
+        if(debounce[j][i] < DEBOUNCE_LIM){
+          debounce[j][i] += 1;
+          continue;
+        }
+        debounce[j][i] = 0;
         if(held[j][i] == 0){
           Serial.printf("Pressing (%d,%d)\n",j,i);
           held[j][i] = 1;
@@ -104,25 +118,32 @@ void loop() {
             send_key(n_key_index,keycode);
           }
         }
-      }else if(held[j][i]){ // only once when not held
-        if(LSHIFT(j,i)){
-          Keyboard.release(MODIFIERKEY_SHIFT);
-        }else if(RSHIFT(j,i)){
-          Keyboard.release(MODIFIERKEY_RIGHT_SHIFT);
-        }else if(CTRL(j,i)){
-          Keyboard.release(MODIFIERKEY_CTRL);
-        }else if(LALT(j,i)){
-          Keyboard.release(MODIFIERKEY_ALT);
-        }else if(RALT(j,i)){
-          Keyboard.release(MODIFIERKEY_RIGHT_ALT);
-        }else if(WIN(j,i)){
-          Keyboard.release(MODIFIERKEY_GUI);
-        }else if(!FN(j,i)){
-          uint8_t index = held[j][i] - 1;
-          send_key(index,0);
-          n_key_held[index] = 0;
+      }else{
+        if(debounce[j][i] > -DEBOUNCE_LIM){
+          debounce[j][i] -= 1;
+          continue;
         }
-        held[j][i] = 0;
+        debounce[j][i] = 0;
+        if(held[j][i]){ // only once when not held
+          if(LSHIFT(j,i)){
+            Keyboard.release(MODIFIERKEY_SHIFT);
+          }else if(RSHIFT(j,i)){
+            Keyboard.release(MODIFIERKEY_RIGHT_SHIFT);
+          }else if(CTRL(j,i)){
+            Keyboard.release(MODIFIERKEY_CTRL);
+          }else if(LALT(j,i)){
+            Keyboard.release(MODIFIERKEY_ALT);
+          }else if(RALT(j,i)){
+            Keyboard.release(MODIFIERKEY_RIGHT_ALT);
+          }else if(WIN(j,i)){
+            Keyboard.release(MODIFIERKEY_GUI);
+          }else if(!FN(j,i)){
+            uint8_t index = held[j][i] - 1;
+            send_key(index,0);
+            n_key_held[index] = 0;
+          }
+          held[j][i] = 0;
+        }
       }
     }
     digitalWrite(colIndex[i], LOW);
