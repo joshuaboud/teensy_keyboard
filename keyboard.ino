@@ -23,6 +23,7 @@
 #define BRI_UP 225
 #define BRI_DN 224
 
+// modifier key indexes
 #define L_SHIFT_ROW 3
 #define L_SHIFT_COL 0
 #define R_SHIFT_ROW 3
@@ -42,6 +43,7 @@
 #define FN_ROW 4
 #define FN_COL 11
 
+// modifier key index tests
 #define LSHIFT(x,y) (x == L_SHIFT_ROW && y == L_SHIFT_COL)
 #define RSHIFT(x,y) (x == R_SHIFT_ROW && y == R_SHIFT_COL)
 #define CTRL(x,y) (x == L_CTRL_ROW && y == L_CTRL_COL)
@@ -50,36 +52,37 @@
 #define WIN(x,y) (x == WIN_ROW && y == WIN_COL)
 #define FN(x,y) (x == FN_ROW && y == FN_COL)
 
-#define N_KEYS 6
+#define N_KEYS 6 // number of keys to be sent at once (6 is max for teensyduino)
 
-#define DEBOUNCE_LIM 50
+#define DEBOUNCE_LIM 50 // +/- threshold for integrator debounce
 
 #define ROWS 5
 #define COLS 16
 
-uint8_t rowIndex[ROWS] = {2, 3, 4, 5, 6};
-uint8_t colIndex[COLS] = {7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
-uint16_t keys[ROWS][COLS] = {
+uint8_t rowIndex[ROWS] = {2, 3, 4, 5, 6}; // pins to which rows are connected
+uint8_t colIndex[COLS] = {7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}; // and columns
+uint16_t keys[ROWS][COLS] = { // big map of keycodes
   {KEY_ESC,KEY_1,KEY_2,KEY_3,KEY_4,KEY_5,KEY_6,KEY_7,KEY_8,KEY_9,KEY_0,KEY_MINUS,KEY_EQUAL,KEY_TILDE,KEY_BACKSPACE,KEY_DELETE},
-  {KEY_TAB,KEY_Q,KEY_W,KEY_E,KEY_R,KEY_T,KEY_Y,KEY_U,KEY_I,KEY_O,KEY_P,KEY_LEFT_BRACE,KEY_RIGHT_BRACE,'0',KEY_BACKSLASH,KEY_PAGE_UP},
-  {KEY_CAPS_LOCK,KEY_A,KEY_S,KEY_D,KEY_F,KEY_G,KEY_H,KEY_J,KEY_K,KEY_L,KEY_SEMICOLON,KEY_QUOTE,'1',KEY_ENTER,'1',KEY_PAGE_DOWN},
-  {MODIFIERKEY_SHIFT,'1',KEY_Z,KEY_X,KEY_C,KEY_V,KEY_B,KEY_N,KEY_M,KEY_COMMA,KEY_PERIOD,KEY_SLASH,MODIFIERKEY_RIGHT_SHIFT,'1',KEY_UP,KEY_END},
-  {MODIFIERKEY_CTRL,MODIFIERKEY_GUI,MODIFIERKEY_ALT,'1','2','3',KEY_SPACE,'1','2','3',MODIFIERKEY_RIGHT_ALT,'9','1',KEY_LEFT,KEY_DOWN,KEY_RIGHT}
+  {KEY_TAB,KEY_Q,KEY_W,KEY_E,KEY_R,KEY_T,KEY_Y,KEY_U,KEY_I,KEY_O,KEY_P,KEY_LEFT_BRACE,KEY_RIGHT_BRACE,0,KEY_BACKSLASH,KEY_PAGE_UP},
+  {KEY_CAPS_LOCK,KEY_A,KEY_S,KEY_D,KEY_F,KEY_G,KEY_H,KEY_J,KEY_K,KEY_L,KEY_SEMICOLON,KEY_QUOTE,0,KEY_ENTER,0,KEY_PAGE_DOWN},
+  {MODIFIERKEY_SHIFT,0,KEY_Z,KEY_X,KEY_C,KEY_V,KEY_B,KEY_N,KEY_M,KEY_COMMA,KEY_PERIOD,KEY_SLASH,MODIFIERKEY_RIGHT_SHIFT,0,KEY_UP,KEY_END},
+  {MODIFIERKEY_CTRL,MODIFIERKEY_GUI,MODIFIERKEY_ALT,0,0,0,KEY_SPACE,0,0,0,MODIFIERKEY_RIGHT_ALT,0,0,KEY_LEFT,KEY_DOWN,KEY_RIGHT}
 };
-uint16_t fn_keys[ROWS][COLS] = {
+uint16_t fn_keys[ROWS][COLS] = { // second layer map for when Fn is held
   {0,KEY_F1,KEY_F2,KEY_F3,KEY_F4,KEY_F5,KEY_F6,KEY_F7,KEY_F8,KEY_F9,KEY_F10,KEY_F11,KEY_F12,0,0,0},
   {0,KEY_7,KEY_8,KEY_9,0,0,0,0,0,0,0,0,0,0,0,KEY_END},
   {0,KEY_4,KEY_5,KEY_6,0,0,0,0,0,0,0,0,0,0,0,KEY_HOME},
   {0,0,KEY_1,KEY_2,KEY_3,0,0,0,0,0,0,0,0,0,VOL_UP,0},
   {0,0,0,0,0,0,KEY_0,0,0,0,0,0,0,BRI_DN,VOL_DN,BRI_UP}
 };
-uint8_t held[ROWS][COLS] = {0};
+uint8_t held[ROWS][COLS] = {0}; // locks to send and release the key only once per press
 
-uint8_t n_key_held[N_KEYS] = {0};
+uint8_t n_key_held[N_KEYS] = {0}; // locks to help with N_KEYS-rollover
 
-int8_t debounce[ROWS][COLS] = {0};
+int8_t debounce[ROWS][COLS] = {0}; // debounce integrators
 
 void send_key(uint8_t index, uint16_t key);
+// allows for numeric indexing of Keyboard.set_key<n>() functions
 
 void setup() {
   Serial.begin(9600);
