@@ -1,3 +1,21 @@
+/* file: keyboard.ino
+ *
+ * Copyright 2020 Josh Boudreau
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include <Keyboard.h>
 
 #define VOL_UP 115
@@ -67,11 +85,11 @@ void setup() {
   Serial.begin(9600);
   int i;
   for(i = 0; i <= COLS; i++){
-    pinMode(colIndex[i], OUTPUT);
-    digitalWrite(i, LOW);
+    pinMode(colIndex[i], INPUT_PULLUP);
   }
   for(i = 0; i <= ROWS; i++){
-    pinMode(rowIndex[i], INPUT_PULLDOWN);
+    pinMode(rowIndex[i], OUTPUT);
+    digitalWrite(rowIndex[i],HIGH);
   }
 }
 
@@ -79,78 +97,87 @@ void setup() {
 void loop() {
   int i, j;
   uint8_t n_key_index = 0;
-  for(i = 0; i < COLS; i++){
-    digitalWrite(colIndex[i], HIGH);
-    for(j = 0; j < ROWS; j++){
-      if(digitalRead(rowIndex[j]) == HIGH){
+  for(i = 0; i < ROWS; i++){
+    // all but one row is held high
+    digitalWrite(rowIndex[i], LOW);
+    for(j = 0; j < COLS; j++){
+      // if switch is closed, pulls that column low through diode
+      if(digitalRead(colIndex[j]) == LOW){
         // key pressed
-        if(debounce[j][i] < DEBOUNCE_LIM){
-          debounce[j][i] += 1;
+        // debounce through discreet integration to threshold
+        // closed switch increments, open switch decrements
+        if(debounce[i][j] < DEBOUNCE_LIM){
+          debounce[i][j] += 1;
           continue;
         }
-        debounce[j][i] = 0;
-        if(held[j][i] == 0){
-          Serial.printf("Pressing (%d,%d)\n",j,i);
-          held[j][i] = 1;
-          if(LSHIFT(j,i)){
+        debounce[i][j] = 0;
+        if(held[i][j] == 0){
+          // this lock ensures keypress only sent once
+          held[i][j] = 1;
+          if(LSHIFT(i,j)){
             Keyboard.press(MODIFIERKEY_SHIFT);
-          }else if(RSHIFT(j,i)){
+          }else if(RSHIFT(i,j)){
             Keyboard.press(MODIFIERKEY_RIGHT_SHIFT);
-          }else if(CTRL(j,i)){
+          }else if(CTRL(i,j)){
             Keyboard.press(MODIFIERKEY_CTRL);
-          }else if(LALT(j,i)){
+          }else if(LALT(i,j)){
             Keyboard.press(MODIFIERKEY_ALT);
-          }else if(RALT(j,i)){
+          }else if(RALT(i,j)){
             Keyboard.press(MODIFIERKEY_RIGHT_ALT);
-          }else if(WIN(j,i)){
+          }else if(WIN(i,j)){
             Keyboard.press(MODIFIERKEY_GUI);
-          }else if(!FN(j,i)){
-            uint16_t keycode = keys[j][i];
+          }else if(!FN(i,j)){
+            uint16_t keycode = keys[i][j];
             if(held[FN_ROW][FN_COL]){
-              keycode = fn_keys[j][i];
-              Serial.printf("fn modifier code: %d (%x)\n",keycode,keycode);
+              keycode = fn_keys[i][j];
             }
+            // insert key code into lowest available Keyboard.set_key<n>
             for(n_key_index = 0; n_key_index < N_KEYS; n_key_index++){
               if(!n_key_held[n_key_index]) break;
             }
             n_key_held[n_key_index] = 1;
-            held[j][i] = n_key_index + 1;
+            held[i][j] = n_key_index + 1; // save index in held[][]
             send_key(n_key_index,keycode);
           }
         }
       }else{
-        if(debounce[j][i] > -DEBOUNCE_LIM){
-          debounce[j][i] -= 1;
+        // same debounce but negated
+        if(debounce[i][j] > -DEBOUNCE_LIM){
+          debounce[i][j] -= 1;
           continue;
         }
-        debounce[j][i] = 0;
-        if(held[j][i]){ // only once when not held
-          if(LSHIFT(j,i)){
+        debounce[i][j] = 0;
+        if(held[i][j]){ // only once when not held
+          // since value of held[][] is needed for n_key_held[] index,
+          // it is cleared later
+          if(LSHIFT(i,j)){
             Keyboard.release(MODIFIERKEY_SHIFT);
-          }else if(RSHIFT(j,i)){
+          }else if(RSHIFT(i,j)){
             Keyboard.release(MODIFIERKEY_RIGHT_SHIFT);
-          }else if(CTRL(j,i)){
+          }else if(CTRL(i,j)){
             Keyboard.release(MODIFIERKEY_CTRL);
-          }else if(LALT(j,i)){
+          }else if(LALT(i,j)){
             Keyboard.release(MODIFIERKEY_ALT);
-          }else if(RALT(j,i)){
+          }else if(RALT(i,j)){
             Keyboard.release(MODIFIERKEY_RIGHT_ALT);
-          }else if(WIN(j,i)){
+          }else if(WIN(i,j)){
             Keyboard.release(MODIFIERKEY_GUI);
-          }else if(!FN(j,i)){
-            uint8_t index = held[j][i] - 1;
-            send_key(index,0);
-            n_key_held[index] = 0;
+          }else if(!FN(i,j)){
+            uint8_t index = held[i][j] - 1;
+            send_key(index,0); // clear key code
+            n_key_held[index] = 0; // free up spot for next key press
           }
-          held[j][i] = 0;
+          held[i][j] = 0;
         }
       }
     }
-    digitalWrite(colIndex[i], LOW);
+    digitalWrite(rowIndex[i], HIGH);
   }
 }
 
 void send_key(uint8_t index, uint16_t key){
+  // allows for calling of Keyboard.set_key<n>() with
+  // a numeric index
   switch(index){
   case 0:
     Keyboard.set_key1(key);
