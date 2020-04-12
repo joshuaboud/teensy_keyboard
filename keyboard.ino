@@ -23,7 +23,6 @@
 #define BRI_UP 225
 #define BRI_DN 224
 
-// modifier key indexes
 #define L_SHIFT_ROW 3
 #define L_SHIFT_COL 0
 #define R_SHIFT_ROW 3
@@ -43,7 +42,6 @@
 #define FN_ROW 4
 #define FN_COL 11
 
-// modifier key index tests
 #define LSHIFT(x,y) (x == L_SHIFT_ROW && y == L_SHIFT_COL)
 #define RSHIFT(x,y) (x == R_SHIFT_ROW && y == R_SHIFT_COL)
 #define CTRL(x,y) (x == L_CTRL_ROW && y == L_CTRL_COL)
@@ -52,15 +50,15 @@
 #define WIN(x,y) (x == WIN_ROW && y == WIN_COL)
 #define FN(x,y) (x == FN_ROW && y == FN_COL)
 
-#define N_KEYS 6 // number of keys to be sent at once (6 is max for teensyduino)
+#define N_KEYS 6
 
-#define DEBOUNCE_LIM 50 // +/- threshold for integrator debounce
+#define DEBOUNCE_LIM 50
 
 #define ROWS 5
 #define COLS 16
 
-uint8_t rowIndex[ROWS] = {2, 3, 4, 5, 6}; // pins to which rows are connected
-uint8_t colIndex[COLS] = {7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}; // and columns
+uint8_t rowIndex[ROWS] = {2, 3, 4, 5, 6};
+uint8_t colIndex[COLS] = {7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
 uint16_t keys[ROWS][COLS] = { // big map of keycodes
   {KEY_ESC,KEY_1,KEY_2,KEY_3,KEY_4,KEY_5,KEY_6,KEY_7,KEY_8,KEY_9,KEY_0,KEY_MINUS,KEY_EQUAL,KEY_TILDE,KEY_BACKSPACE,KEY_DELETE},
   {KEY_TAB,KEY_Q,KEY_W,KEY_E,KEY_R,KEY_T,KEY_Y,KEY_U,KEY_I,KEY_O,KEY_P,KEY_LEFT_BRACE,KEY_RIGHT_BRACE,0,KEY_BACKSLASH,KEY_PAGE_UP},
@@ -68,21 +66,22 @@ uint16_t keys[ROWS][COLS] = { // big map of keycodes
   {MODIFIERKEY_SHIFT,0,KEY_Z,KEY_X,KEY_C,KEY_V,KEY_B,KEY_N,KEY_M,KEY_COMMA,KEY_PERIOD,KEY_SLASH,MODIFIERKEY_RIGHT_SHIFT,0,KEY_UP,KEY_END},
   {MODIFIERKEY_CTRL,MODIFIERKEY_GUI,MODIFIERKEY_ALT,0,0,0,KEY_SPACE,0,0,0,MODIFIERKEY_RIGHT_ALT,0,0,KEY_LEFT,KEY_DOWN,KEY_RIGHT}
 };
-uint16_t fn_keys[ROWS][COLS] = { // second layer map for when Fn is held
+uint16_t fn_keys[ROWS][COLS] = {
   {0,KEY_F1,KEY_F2,KEY_F3,KEY_F4,KEY_F5,KEY_F6,KEY_F7,KEY_F8,KEY_F9,KEY_F10,KEY_F11,KEY_F12,0,0,0},
   {0,KEY_7,KEY_8,KEY_9,0,0,0,0,0,0,0,0,0,0,0,KEY_END},
   {0,KEY_4,KEY_5,KEY_6,0,0,0,0,0,0,0,0,0,0,0,KEY_HOME},
   {0,0,KEY_1,KEY_2,KEY_3,0,0,0,0,0,0,0,0,0,VOL_UP,0},
   {0,0,0,0,0,0,KEY_0,0,0,0,0,0,0,BRI_DN,VOL_DN,BRI_UP}
 };
-uint8_t held[ROWS][COLS] = {0}; // locks to send and release the key only once per press
+uint8_t held[ROWS][COLS] = {0};
 
-uint8_t n_key_held[N_KEYS] = {0}; // locks to help with N_KEYS-rollover
+uint8_t n_key_held[N_KEYS] = {0};
 
-int8_t debounce[ROWS][COLS] = {0}; // debounce integrators
+int8_t debounce[ROWS][COLS] = {0};
+
+void readKey(uint8_t i, uint8_t j);
 
 void send_key(uint8_t index, uint16_t key);
-// allows for numeric indexing of Keyboard.set_key<n>() functions
 
 void setup() {
   Serial.begin(9600);
@@ -98,83 +97,84 @@ void setup() {
 
 
 void loop() {
-  int i, j;
-  uint8_t n_key_index = 0;
+  uint8_t i, j;
   for(i = 0; i < ROWS; i++){
     // all but one row is held high
     digitalWrite(rowIndex[i], LOW);
     for(j = 0; j < COLS; j++){
       // if switch is closed, pulls that column low through diode
-      if(digitalRead(colIndex[j]) == LOW){
-        // key pressed
-        // debounce through discreet integration to threshold
-        // closed switch increments, open switch decrements
-        if(debounce[i][j] < DEBOUNCE_LIM){
-          debounce[i][j] += 1;
-          continue;
-        }
-        debounce[i][j] = 0;
-        if(held[i][j] == 0){
-          // this lock ensures keypress only sent once
-          held[i][j] = 1;
-          if(LSHIFT(i,j)){
-            Keyboard.press(MODIFIERKEY_SHIFT);
-          }else if(RSHIFT(i,j)){
-            Keyboard.press(MODIFIERKEY_RIGHT_SHIFT);
-          }else if(CTRL(i,j)){
-            Keyboard.press(MODIFIERKEY_CTRL);
-          }else if(LALT(i,j)){
-            Keyboard.press(MODIFIERKEY_ALT);
-          }else if(RALT(i,j)){
-            Keyboard.press(MODIFIERKEY_RIGHT_ALT);
-          }else if(WIN(i,j)){
-            Keyboard.press(MODIFIERKEY_GUI);
-          }else if(!FN(i,j)){
-            uint16_t keycode = keys[i][j];
-            if(held[FN_ROW][FN_COL]){
-              keycode = fn_keys[i][j];
-            }
-            // insert key code into lowest available Keyboard.set_key<n>
-            for(n_key_index = 0; n_key_index < N_KEYS; n_key_index++){
-              if(!n_key_held[n_key_index]) break;
-            }
-            n_key_held[n_key_index] = 1;
-            held[i][j] = n_key_index + 1; // save index in held[][]
-            send_key(n_key_index,keycode);
-          }
-        }
-      }else{
-        // same debounce but negated
-        if(debounce[i][j] > -DEBOUNCE_LIM){
-          debounce[i][j] -= 1;
-          continue;
-        }
-        debounce[i][j] = 0;
-        if(held[i][j]){ // only once when not held
-          // since value of held[][] is needed for n_key_held[] index,
-          // it is cleared later
-          if(LSHIFT(i,j)){
-            Keyboard.release(MODIFIERKEY_SHIFT);
-          }else if(RSHIFT(i,j)){
-            Keyboard.release(MODIFIERKEY_RIGHT_SHIFT);
-          }else if(CTRL(i,j)){
-            Keyboard.release(MODIFIERKEY_CTRL);
-          }else if(LALT(i,j)){
-            Keyboard.release(MODIFIERKEY_ALT);
-          }else if(RALT(i,j)){
-            Keyboard.release(MODIFIERKEY_RIGHT_ALT);
-          }else if(WIN(i,j)){
-            Keyboard.release(MODIFIERKEY_GUI);
-          }else if(!FN(i,j)){
-            uint8_t index = held[i][j] - 1;
-            send_key(index,0); // clear key code
-            n_key_held[index] = 0; // free up spot for next key press
-          }
-          held[i][j] = 0;
-        }
-      }
+      readKey(i,j);
     }
     digitalWrite(rowIndex[i], HIGH);
+  }
+}
+
+void readKey(uint8_t i, uint8_t j){
+  uint8_t n_key_index = 0;
+  uint8_t readResult = digitalRead(colIndex[j]);
+  if(readResult == LOW && held[i][j] == 0){
+    // key pressed
+    // debounce through discreet integration to threshold
+    // closed switch increments, open switch decrements
+    if(debounce[i][j] < DEBOUNCE_LIM){
+      debounce[i][j] += 1;
+      return;
+    }
+    debounce[i][j] = 0;
+    // this lock ensures keypress only sent once
+    held[i][j] = 1;
+    if(LSHIFT(i,j)){
+      Keyboard.press(MODIFIERKEY_SHIFT);
+    }else if(RSHIFT(i,j)){
+      Keyboard.press(MODIFIERKEY_RIGHT_SHIFT);
+    }else if(CTRL(i,j)){
+      Keyboard.press(MODIFIERKEY_CTRL);
+    }else if(LALT(i,j)){
+      Keyboard.press(MODIFIERKEY_ALT);
+    }else if(RALT(i,j)){
+      Keyboard.press(MODIFIERKEY_RIGHT_ALT);
+    }else if(WIN(i,j)){
+      Keyboard.press(MODIFIERKEY_GUI);
+    }else if(!FN(i,j)){
+      uint16_t keycode = keys[i][j];
+      if(held[FN_ROW][FN_COL]){
+        keycode = fn_keys[i][j];
+      }
+      // insert key code into lowest available Keyboard.set_key<n>
+      for(n_key_index = 0; n_key_index < N_KEYS; n_key_index++){
+        if(!n_key_held[n_key_index]) break;
+      }
+      n_key_held[n_key_index] = 1;
+      held[i][j] = n_key_index + 1; // save index in held[][]
+      send_key(n_key_index,keycode);
+    }
+  }else if(readResult == HIGH && held[i][j]){
+    // same debounce but negated
+    if(debounce[i][j] > -DEBOUNCE_LIM){
+      debounce[i][j] -= 1;
+      return;
+    }
+    debounce[i][j] = 0;
+    // since value of held[][] is needed for n_key_held[] index,
+    // it is cleared later
+    if(LSHIFT(i,j)){
+      Keyboard.release(MODIFIERKEY_SHIFT);
+    }else if(RSHIFT(i,j)){
+      Keyboard.release(MODIFIERKEY_RIGHT_SHIFT);
+    }else if(CTRL(i,j)){
+      Keyboard.release(MODIFIERKEY_CTRL);
+    }else if(LALT(i,j)){
+      Keyboard.release(MODIFIERKEY_ALT);
+    }else if(RALT(i,j)){
+      Keyboard.release(MODIFIERKEY_RIGHT_ALT);
+    }else if(WIN(i,j)){
+      Keyboard.release(MODIFIERKEY_GUI);
+    }else if(!FN(i,j)){
+      uint8_t index = held[i][j] - 1;
+      send_key(index,0); // clear key code
+      n_key_held[index] = 0; // free up spot for next key press
+    }
+    held[i][j] = 0;
   }
 }
 
