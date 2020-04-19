@@ -70,7 +70,7 @@ uint16_t fn_keys[ROWS][COLS] = {
   {0,KEY_F1,KEY_F2,KEY_F3,KEY_F4,KEY_F5,KEY_F6,KEY_F7,KEY_F8,KEY_F9,KEY_F10,KEY_F11,KEY_F12,0,0,0},
   {0,KEY_7,KEY_8,KEY_9,0,0,0,0,0,0,0,0,0,0,0,KEY_END},
   {0,KEY_4,KEY_5,KEY_6,0,0,0,0,0,0,0,0,0,0,0,KEY_HOME},
-  {0,0,KEY_1,KEY_2,KEY_3,0,0,0,0,0,0,0,0,0,VOL_UP,0},
+  {0,0,KEY_1,KEY_2,KEY_3,0,0,0,0,0,0,0,0,0,VOL_UP,KEY_PRINTSCREEN},
   {0,0,0,0,0,0,KEY_0,0,0,0,0,0,0,BRI_DN,VOL_DN,BRI_UP}
 };
 uint8_t held[ROWS][COLS] = {0};
@@ -86,10 +86,10 @@ void send_key(uint8_t index, uint16_t key);
 void setup() {
   Serial.begin(9600);
   int i;
-  for(i = 0; i <= COLS; i++){
+  for(i = 0; i < COLS; i++){
     pinMode(colIndex[i], INPUT_PULLUP);
   }
-  for(i = 0; i <= ROWS; i++){
+  for(i = 0; i < ROWS; i++){
     pinMode(rowIndex[i], OUTPUT);
     digitalWrite(rowIndex[i],HIGH);
   }
@@ -175,7 +175,7 @@ void readKey(uint8_t i, uint8_t j){
       n_key_held[index] = 0; // free up spot for next key press
     }
     held[i][j] = 0;
-  }
+  } // else continue
 }
 
 void send_key(uint8_t index, uint16_t key){
